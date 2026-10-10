@@ -1,0 +1,27 @@
+{
+	"name": "stats-neon",
+	"version": "1.0.0",
+	"description": "Neon SYS.STATS card for your GitHub profile: streaks, repo stats and languages (Catppuccin)",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22.18"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"lint": "biome check .",
+		"typecheck": "tsc --noEmit",
+		"build": "node build.mjs"
+	},
+	"dependencies": {
+		"@sm-steel/neon-kit": "^1.1.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.15",
+		"@types/node": "^26.6.5",
+		"esbuild": "^0.28.2",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.3"
+	}
+}

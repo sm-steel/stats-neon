@@ -1,0 +1,14 @@
+[tools]
+node = "24.21.0"
+
+[tasks.test]
+run = "npx vitest run"
+
+[tasks.lint]
+run = "npx biome check ."
+
+[tasks.build]
+run = "node build.mjs"
+
+[tasks.preview]
+run = "node --experimental-strip-types src/preview.ts"
