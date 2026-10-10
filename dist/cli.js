@@ -536,23 +536,34 @@ var LAYOUT = {
   width: 868,
   gap: 10,
   tileH: 78,
-  /** Baselines of the 3 stat-grid rows. */
-  statsY: [104, 126, 148],
-  langY: 178,
-  barY: 188,
+  /** Stat cells: 4 × 3 badge-like frames, `cellGap` apart both ways. */
+  gridY: 90,
+  cellH: 24,
+  cellGap: 8,
+  langY: 202,
+  barY: 212,
   barH: 10,
-  legendY: 218,
+  legendY: 242,
   rowH: 20,
   cols: 4
 };
 var TILE_W = (LAYOUT.width - 2 * LAYOUT.gap) / 3;
-var COL_W = LAYOUT.width / LAYOUT.cols;
+var CELL_W = (LAYOUT.width - (LAYOUT.cols - 1) * LAYOUT.cellGap) / LAYOUT.cols;
+var COL_W = CELL_W + LAYOUT.cellGap;
+var GRID_BOTTOM = LAYOUT.gridY + 3 * LAYOUT.cellH + 2 * LAYOUT.cellGap;
 function tile(i, value, label, range, p) {
   const x = r3(i * (TILE_W + LAYOUT.gap));
   const cx = r3(x + TILE_W / 2);
   return `<rect x="${x}" y="0" width="${r3(TILE_W)}" height="${LAYOUT.tileH}" rx="2" fill="none" stroke="${p.border}"/><text x="${cx}" y="32" text-anchor="middle" font-size="26" font-weight="700" fill="${p.accent}">${esc(value)}</text><text x="${cx}" y="52" text-anchor="middle" font-size="13" fill="${p.text}">${label}</text><text x="${cx}" y="68" text-anchor="middle" font-size="11" fill="${p.subtext}">${esc(range)}</text>`;
 }
 var dash = (v) => v === null ? "\u2014" : fmtInt(v);
+function brackets2(x, y, w, h, c) {
+  const s = 5;
+  const r = r3(x + w);
+  const b = y + h;
+  const d = `M${x} ${y + s}V${y}H${r3(x + s)}M${r3(r - s)} ${y}H${r}V${y + s}M${r} ${b - s}V${b}H${r3(r - s)}M${r3(x + s)} ${b}H${x}V${b - s}`;
+  return `<path d="${d}" fill="none" stroke="${c}" stroke-opacity="0.5"/>`;
+}
 function statsGrid(s, p) {
   const items = [
     ["repo", "REPOS", fmtInt(s.repos)],
@@ -574,15 +585,15 @@ function statsGrid(s, p) {
   ];
   return items.map(([icon, label, value], i) => {
     const x = r3(i % LAYOUT.cols * COL_W);
-    const y = LAYOUT.statsY[Math.floor(i / LAYOUT.cols)];
-    return `<svg class="st-icon" x="${x}" y="${y - 11}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg><text x="${r3(x + 20)}" y="${y}" font-size="12" letter-spacing="1"><tspan fill="${p.subtext}">${label} </tspan><tspan fill="${p.text}">${esc(value)}</tspan></text>`;
+    const y = LAYOUT.gridY + Math.floor(i / LAYOUT.cols) * (LAYOUT.cellH + LAYOUT.cellGap);
+    const base = y + 16;
+    return `<rect class="st-cell" x="${x}" y="${y}" width="${r3(CELL_W)}" height="${LAYOUT.cellH}" fill="${p.accent}" fill-opacity="0.03" stroke="${p.border}" stroke-opacity="0.6"/>` + brackets2(x, y, CELL_W, LAYOUT.cellH, p.accent) + `<svg class="st-icon" x="${r3(x + 9)}" y="${y + 5}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg><text x="${r3(x + 30)}" y="${base}" font-size="11" letter-spacing="1" fill="${p.subtext}">${label}</text><text class="st-val" x="${r3(x + CELL_W - 10)}" y="${base}" text-anchor="end" font-size="12" font-weight="700" fill="${p.accent}">${esc(value)}</text>`;
   }).join("");
 }
 function languagesSection(d, n, p, ramp) {
   const top = d.langs.top.slice(0, n);
   const otherPct = d.langs.otherPct + d.langs.top.slice(n).reduce((s, l) => s + l.pct, 0);
-  if (top.length === 0)
-    return { svg: "", height: LAYOUT.statsY[2] + 8 };
+  if (top.length === 0) return { svg: "", height: GRID_BOTTOM + 2 };
   const entries = [
     ...top.map((l, i) => ({
       name: l.name,

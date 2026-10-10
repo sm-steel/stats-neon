@@ -78,10 +78,33 @@ describe("renderStats", () => {
 			["DISK", "51.6 MB"],
 		];
 		for (const [label, value] of items) {
-			expect(svg).toContain(`>${label} </tspan>`);
-			expect(svg).toContain(`>${value}</tspan>`);
+			expect(svg).toContain(`>${label}</text>`);
+			expect(svg).toContain(`>${value}</text>`);
 		}
 		expect(svg.match(/class="st-icon"/g)).toHaveLength(12);
+	});
+	it("frames each stat as a badge-like cell with its value right-aligned", () => {
+		const svg = renderStats(data(), mocha);
+		const cells = [
+			...svg.matchAll(
+				/<rect class="st-cell" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)"/g,
+			),
+		];
+		expect(cells).toHaveLength(12);
+		const values = [
+			...svg.matchAll(
+				/<text class="st-val" x="([\d.]+)"[^>]*text-anchor="end"/g,
+			),
+		];
+		expect(values).toHaveLength(12);
+		// each value ends inside its cell, 10px from the right edge
+		values.forEach((v, i) => {
+			const c = cells[i];
+			expect(Number(v[1])).toBeCloseTo(Number(c?.[1]) + Number(c?.[3]) - 10, 3);
+		});
+		// the last column ends flush with the card
+		const last = cells.at(-1);
+		expect(Number(last?.[1]) + Number(last?.[3])).toBeCloseTo(LAYOUT.width, 3);
 	});
 	it("shows — for stats GitHub hid from the token", () => {
 		const svg = renderStats(
@@ -96,7 +119,7 @@ describe("renderStats", () => {
 			}),
 			mocha,
 		);
-		expect(svg.match(/>—<\/tspan>/g)).toHaveLength(4);
+		expect(svg.match(/>—<\/text>/g)).toHaveLength(4);
 	});
 	it("shows the language count in the header", () => {
 		expect(renderStats(data(), mocha)).toContain("LANGUAGES · 15");

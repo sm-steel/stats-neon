@@ -143,9 +143,9 @@ The user asked for metrics' remaining stats and for icons:
   - `DISK` = `totalDiskUsage` KB / 1000, with 1 decimal, plus ` MB`.
   - Verified live: sponsors 0, packages 0, 51,602 KB.
 - **Languages header:** `// LANGUAGES · <N>`, where N is the number of distinct languages in non-fork repos (15 for sm-steel).
-- **Stats grid** (replaces the one-line stats row): 4 columns × 3 rows, baselines y=104, 126 and 148, column width 217. Each entry is a 14px **Octicon** (GitHub's MIT-licensed icon set, 16px paths embedded in `src/icons.ts`) in the accent colour, plus `LABEL` in `subtext` and `value` in `text`, at 12px. In order:
+- **Stats grid** (replaces the one-line stats row): 4 columns × 3 rows of badge-like cells (211×24, 8px gaps, starting at y=90). Each cell has a faint accent tint (3%), a `border` stroke at 60% and accent corner brackets at 50%. Inside: a 14px **Octicon** (GitHub's MIT-licensed icon set, 16px paths embedded in `src/icons.ts`) in the accent colour, `LABEL` in `subtext` at 11px, and the value right-aligned 10px from the cell edge, bold 12px in the accent colour. The language legend uses the same column positions. In order:
   - repo `REPOS`, star `STARS`, repo-forked `FORKERS`, eye `WATCHERS`;
   - repo-push `CONTRIBUTED TO`, tag `RELEASES`, package `PACKAGES`, heart `SPONSORS`;
   - people `FOLLOWERS`, calendar `JOINED`, law `LICENSE`, database `DISK`.
-- **Layout shift:** `// LANGUAGES` at y=178, bar at 188, first legend baseline 218. Height without languages: 156.
+- **Layout shift:** `// LANGUAGES` at y=202, bar at 212, first legend baseline 242. Height without languages: 180.
 - **README:** includes the Octicons MIT notice.
