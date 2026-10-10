@@ -36,7 +36,7 @@ The user chose to replace both with **one `// SYS.STATS` card** from a **new reu
      user(login: $login) {
        login createdAt
        followers { totalCount }
-       repositoriesContributedTo(contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, REPOSITORY]) { totalCount }
+       repositoriesContributedTo(includeUserRepositories: true) { totalCount }
        repositories(ownerAffiliations: OWNER, first: 100, after: $after) {
          totalCount
          pageInfo { hasNextPage endCursor }
@@ -47,6 +47,7 @@ The user chose to replace both with **one `// SYS.STATS` card** from a **new reu
    ```
    - `user: null` fails with `GitHub user "<login>" not found`. GraphQL `errors` fail with their messages.
    - Pagination stops at **10 pages**, i.e. 1000 repos.
+   - *Verified 2026-10-10 against the live API:* `includeUserRepositories: true` gives 48, close to metrics' 47; without it the count is 11. Year ranges whose `to` is in the future are accepted and return future days, so cutting at today is required.
 2. **Contributions.** One query with one alias per calendar year from the year of `createdAt` to the current year. Each alias is `yYYYY: contributionsCollection(from:, to:)`, where `from` is `createdAt` for the first year and `YYYY-01-01T00:00:00Z` otherwise, and `to` is `YYYY-12-31T23:59:59Z` (each range is at most one year, as the API requires). Each alias returns `contributionCalendar { totalContributions weeks { contributionDays { date contributionCount } } }`.
 
 ## Derived values
