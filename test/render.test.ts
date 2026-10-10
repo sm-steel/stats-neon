@@ -17,6 +17,12 @@ const data = (o: Partial<CardData> = {}): CardData => ({
 		releases: 29,
 		followers: 1,
 		joined: "1Y",
+		forks: 0,
+		watchers: 0,
+		license: "MIT",
+		sponsors: 0,
+		packages: 0,
+		diskKB: 51602,
 	},
 	langs: {
 		top: [
@@ -30,6 +36,7 @@ const data = (o: Partial<CardData> = {}): CardData => ({
 			"JavaScript",
 		].map((n, i) => lang(n, [60, 12, 8, 4, 2, 1, 1, 0.6][i] ?? 0)),
 		otherPct: 11.4,
+		count: 15,
 	},
 	currentYear: 2026,
 	...o,
@@ -54,27 +61,54 @@ describe("renderStats", () => {
 			expect(svg).toContain(s);
 		expect(svg).toContain("SYS.STATS :: @SM-STEEL"); // Review Focus 4
 	});
-	it("prints the stats line", () => {
+	it("shows the 12-stat grid, each with an Octicon", () => {
 		const svg = renderStats(data(), mocha);
-		for (const s of [
-			"REPOS",
-			">37<",
-			"CONTRIBUTED TO",
-			">48<",
-			"STARS",
-			"RELEASES",
-			">29<",
-			"FOLLOWERS",
-			"JOINED",
-			">1Y<",
-		])
-			expect(svg).toContain(s);
+		const items: [string, string][] = [
+			["REPOS", "37"],
+			["STARS", "2"],
+			["FORKERS", "0"],
+			["WATCHERS", "0"],
+			["CONTRIBUTED TO", "48"],
+			["RELEASES", "29"],
+			["PACKAGES", "0"],
+			["SPONSORS", "0"],
+			["FOLLOWERS", "1"],
+			["JOINED", "1Y"],
+			["LICENSE", "MIT"],
+			["DISK", "51.6 MB"],
+		];
+		for (const [label, value] of items) {
+			expect(svg).toContain(`>${label} </tspan>`);
+			expect(svg).toContain(`>${value}</tspan>`);
+		}
+		expect(svg.match(/class="st-icon"/g)).toHaveLength(12);
+	});
+	it("shows — for stats GitHub hid from the token", () => {
+		const svg = renderStats(
+			data({
+				stats: {
+					...data().stats,
+					packages: null,
+					sponsors: null,
+					diskKB: null,
+					license: null,
+				},
+			}),
+			mocha,
+		);
+		expect(svg.match(/>—<\/tspan>/g)).toHaveLength(4);
+	});
+	it("shows the language count in the header", () => {
+		expect(renderStats(data(), mocha)).toContain("LANGUAGES · 15");
 	});
 	it("fills the bar exactly and colours by rank, with Other last", () => {
 		const svg = renderStats(data(), mocha);
 		const segs = [
 			...svg.matchAll(
-				/<rect class="st-seg" x="([\d.]+)" y="148" width="([\d.]+)" height="10" fill="(#[0-9a-f]+)"/g,
+				new RegExp(
+					`<rect class="st-seg" x="([\\d.]+)" y="${LAYOUT.barY}" width="([\\d.]+)" height="10" fill="(#[0-9a-f]+)"`,
+					"g",
+				),
 			),
 		];
 		expect(segs).toHaveLength(9);
@@ -87,7 +121,7 @@ describe("renderStats", () => {
 	it("lays out the legend in rows of 4 and grows the card", () => {
 		const one = h(
 			renderStats(
-				data({ langs: { top: [lang("Python", 100)], otherPct: 0 } }),
+				data({ langs: { top: [lang("Python", 100)], otherPct: 0, count: 1 } }),
 				mocha,
 			),
 		);
@@ -97,6 +131,7 @@ describe("renderStats", () => {
 					langs: {
 						top: ["A", "B", "C", "D", "E"].map((n) => lang(n, 20)),
 						otherPct: 0,
+						count: 15,
 					},
 				}),
 				mocha,
@@ -115,7 +150,7 @@ describe("renderStats", () => {
 	it("omits the languages section with no data and handles zero streaks (Review Focus 1)", () => {
 		const svg = renderStats(
 			data({
-				langs: { top: [], otherPct: 0 },
+				langs: { top: [], otherPct: 0, count: 15 },
 				total: 0,
 				since: null,
 				current: null,
@@ -131,7 +166,11 @@ describe("renderStats", () => {
 	it("escapes language names (Review Focus 3)", () => {
 		const svg = renderStats(
 			data({
-				langs: { top: [lang("C++", 50), lang("<x>&", 50)], otherPct: 0 },
+				langs: {
+					top: [lang("C++", 50), lang("<x>&", 50)],
+					otherPct: 0,
+					count: 15,
+				},
 			}),
 			mocha,
 		);

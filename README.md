@@ -3,8 +3,8 @@
 A neon `// SYS.STATS` card for your GitHub profile, rendered as one animated SVG from GitHub's API:
 
 - **Streaks:** total contributions since your first one, your current streak and your longest streak, each with its date range.
-- **Stats:** repos, repos contributed to, stars, releases, followers and account age.
-- **Languages:** a bar and legend of your top languages by code size, in Catppuccin colours.
+- **Stats:** repos, stars, forkers, watchers, repos contributed to, releases, packages, sponsors, followers, account age, your most-used license and disk used, each with its icon.
+- **Languages:** how many you use, plus a bar and legend of your top ones by code size, in Catppuccin colours.
 
 It's built with [@sm-steel/neon-kit](https://github.com/sm-steel/neon-kit), the same look as [contrib-neon](https://github.com/sm-steel/contrib-neon): Catppuccin panels, corner brackets, scanlines, a scan beam and occasional glitch tears.
 
@@ -59,7 +59,7 @@ Each `outputs` line is a file path with options as a query string:
 | `flavor` | `latte`, `frappe`, `macchiato`, `mocha` | `mocha` |
 | `languages` | 1–8: how many languages get their own colour (the rest become "Other") | `8` |
 
-Action inputs: `github_user_name` (required), `outputs` (required), and `github_token` (default: the workflow token, which sees public data, the same view a visitor has).
+Action inputs: `github_user_name` (required), `outputs` (required), and `github_token` (default: the workflow token, which sees public data, the same view a visitor has). GitHub may hide packages, sponsors or disk usage from the workflow token; those then show `—`. To fill them, pass a personal access token from a secret: `github_token: ${{ secrets.MY_TOKEN }}`.
 
 ## How streaks are counted
 
@@ -79,4 +79,4 @@ Tools are pinned with [mise](https://mise.jdx.dev): `mise install && npm ci`.
 
 ## License
 
-MIT.
+MIT. The stat icons are [GitHub Octicons](https://github.com/primer/octicons) (© GitHub Inc., MIT License), embedded in `src/icons.ts`.

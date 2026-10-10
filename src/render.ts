@@ -7,6 +7,7 @@ import {
 	r3,
 } from "@sm-steel/neon-kit";
 import { fmtInt, fmtRun, fmtSince } from "./format.ts";
+import { ICONS } from "./icons.ts";
 import type { OutputSpec } from "./options.ts";
 import { RAMP } from "./palette.ts";
 import type { Lang, RepoStats } from "./stats.ts";
@@ -20,7 +21,7 @@ export interface CardData {
 	longest: Run | null;
 	stats: RepoStats;
 	/** Languages computed with N = 8; the renderer applies the output's `languages` cut. */
-	langs: { top: Lang[]; otherPct: number };
+	langs: { top: Lang[]; otherPct: number; count: number };
 	currentYear: number;
 }
 
@@ -28,11 +29,12 @@ export const LAYOUT = {
 	width: 868,
 	gap: 10,
 	tileH: 78,
-	statsY: 108,
-	langY: 138,
-	barY: 148,
+	/** Baselines of the 3 stat-grid rows. */
+	statsY: [104, 126, 148],
+	langY: 178,
+	barY: 188,
 	barH: 10,
-	legendY: 178,
+	legendY: 218,
 	rowH: 20,
 	cols: 4,
 } as const;
@@ -57,22 +59,38 @@ function tile(
 	);
 }
 
-function statsLine(s: RepoStats, p: Palette): string {
-	const items: [string, string][] = [
-		["REPOS", fmtInt(s.repos)],
-		["CONTRIBUTED TO", fmtInt(s.contributedTo)],
-		["STARS", fmtInt(s.stars)],
-		["RELEASES", fmtInt(s.releases)],
-		["FOLLOWERS", fmtInt(s.followers)],
-		["JOINED", s.joined],
+const dash = (v: number | null) => (v === null ? "—" : fmtInt(v));
+
+/** 4 × 3 grid: Octicon + LABEL value. */
+function statsGrid(s: RepoStats, p: Palette): string {
+	const items: [string, string, string][] = [
+		["repo", "REPOS", fmtInt(s.repos)],
+		["star", "STARS", fmtInt(s.stars)],
+		["repo-forked", "FORKERS", fmtInt(s.forks)],
+		["eye", "WATCHERS", fmtInt(s.watchers)],
+		["repo-push", "CONTRIBUTED TO", fmtInt(s.contributedTo)],
+		["tag", "RELEASES", fmtInt(s.releases)],
+		["package", "PACKAGES", dash(s.packages)],
+		["heart", "SPONSORS", dash(s.sponsors)],
+		["people", "FOLLOWERS", fmtInt(s.followers)],
+		["calendar", "JOINED", s.joined],
+		["law", "LICENSE", s.license ?? "—"],
+		[
+			"database",
+			"DISK",
+			s.diskKB === null ? "—" : `${(s.diskKB / 1000).toFixed(1)} MB`,
+		],
 	];
-	const body = items
-		.map(
-			([k, v]) =>
-				`<tspan fill="${p.subtext}">${k} </tspan><tspan fill="${p.text}">${esc(v)}</tspan>`,
-		)
-		.join(`<tspan fill="${p.accent}"> · </tspan>`);
-	return `<text x="0" y="${LAYOUT.statsY}" font-size="12" letter-spacing="1">${body}</text>`;
+	return items
+		.map(([icon, label, value], i) => {
+			const x = r3((i % LAYOUT.cols) * COL_W);
+			const y = LAYOUT.statsY[Math.floor(i / LAYOUT.cols)] as number;
+			return (
+				`<svg class="st-icon" x="${x}" y="${y - 11}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg>` +
+				`<text x="${r3(x + 20)}" y="${y}" font-size="12" letter-spacing="1"><tspan fill="${p.subtext}">${label} </tspan><tspan fill="${p.text}">${esc(value)}</tspan></text>`
+			);
+		})
+		.join("");
 }
 
 function languagesSection(
@@ -84,7 +102,8 @@ function languagesSection(
 	const top = d.langs.top.slice(0, n);
 	const otherPct =
 		d.langs.otherPct + d.langs.top.slice(n).reduce((s, l) => s + l.pct, 0);
-	if (top.length === 0) return { svg: "", height: LAYOUT.statsY + 8 };
+	if (top.length === 0)
+		return { svg: "", height: (LAYOUT.statsY[2] as number) + 8 };
 	const entries = [
 		...top.map((l, i) => ({
 			name: l.name,
@@ -120,7 +139,7 @@ function languagesSection(
 	const rows = Math.ceil(entries.length / LAYOUT.cols);
 	return {
 		svg:
-			`<text x="0" y="${LAYOUT.langY}" font-size="10" letter-spacing="1.2" fill="${p.text}"><tspan fill="${p.accent}">//</tspan> LANGUAGES</text>` +
+			`<text x="0" y="${LAYOUT.langY}" font-size="10" letter-spacing="1.2" fill="${p.text}"><tspan fill="${p.accent}">//</tspan> LANGUAGES · ${d.langs.count}</text>` +
 			`<clipPath id="st-bar"><rect x="0" y="${LAYOUT.barY}" width="${LAYOUT.width}" height="${LAYOUT.barH}" rx="2"/></clipPath>` +
 			`<g clip-path="url(#st-bar)">${segs}</g>` +
 			legend,
@@ -156,7 +175,7 @@ export function renderStats(
 			fmtRun(d.longest, d.currentYear),
 			p,
 		) +
-		statsLine(d.stats, p) +
+		statsGrid(d.stats, p) +
 		langs.svg;
 	return card(
 		{

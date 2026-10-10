@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { fetchContributions, fetchProfile } from "./github.ts";
+import { fetchContributions, fetchExtras, fetchProfile } from "./github.ts";
 import { parseOutput } from "./options.ts";
 import { type CardData, renderStats } from "./render.ts";
 import { languages, repoStats } from "./stats.ts";
@@ -12,7 +12,10 @@ export async function collect(
 	now: Date = new Date(),
 	fetchFn: typeof fetch = fetch,
 ): Promise<CardData> {
-	const profile = await fetchProfile(login, token, fetchFn);
+	const profile = {
+		...(await fetchProfile(login, token, fetchFn)),
+		...(await fetchExtras(login, token, fetchFn)),
+	};
 	const { total, days } = await fetchContributions(
 		profile.login,
 		profile.createdAt,

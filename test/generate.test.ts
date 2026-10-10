@@ -17,6 +17,9 @@ const profile = {
 				{
 					isFork: false,
 					stargazerCount: 0,
+					forkCount: 0,
+					watchers: { totalCount: 0 },
+					licenseInfo: null,
 					releases: { totalCount: 0 },
 					languages: { edges: [{ size: 10, node: { name: "Go" } }] },
 				},
@@ -44,6 +47,19 @@ describe("collect + generate", () => {
 		const fetchFn = vi
 			.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({ data: profile })))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: {
+							user: {
+								sponsorshipsAsMaintainer: { totalCount: 0 },
+								packages: { totalCount: 0 },
+								repositories: { totalDiskUsage: 10 },
+							},
+						},
+					}),
+				),
+			)
 			.mockResolvedValueOnce(
 				new Response(JSON.stringify({ data: contributions })),
 			);

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	contributionsQuery,
 	fetchContributions,
+	fetchExtras,
 	fetchProfile,
 } from "../src/github.ts";
 
@@ -140,5 +141,54 @@ describe("contributions", () => {
 		);
 		expect(r.total).toBe(5);
 		expect(r.days.map((d) => d.date)).toEqual(["2025-12-31", "2026-01-01"]);
+	});
+});
+
+describe("fetchExtras (best effort)", () => {
+	const extras = {
+		user: {
+			sponsorshipsAsMaintainer: { totalCount: 2 },
+			packages: { totalCount: 1 },
+			repositories: { totalDiskUsage: 51602 },
+		},
+	};
+	it("returns sponsors, packages and disk usage", async () => {
+		const r = await fetchExtras(
+			"u",
+			"t",
+			vi.fn(async () => ok(extras)),
+		);
+		expect(r).toEqual({ sponsors: 2, packages: 1, diskKB: 51602 });
+	});
+	it("keeps what GitHub returned when some fields error", async () => {
+		const partial = {
+			data: { user: { ...extras.user, packages: null } },
+			errors: [{ message: "Resource not accessible by integration" }],
+		};
+		const r = await fetchExtras(
+			"u",
+			"t",
+			vi.fn(async () => new Response(JSON.stringify(partial))),
+		);
+		expect(r).toEqual({ sponsors: 2, packages: null, diskKB: 51602 });
+	});
+	it("never throws: HTTP or network failures give all nulls", async () => {
+		const empty = { sponsors: null, packages: null, diskKB: null };
+		expect(
+			await fetchExtras(
+				"u",
+				"t",
+				vi.fn(async () => new Response("no", { status: 403 })),
+			),
+		).toEqual(empty);
+		expect(
+			await fetchExtras(
+				"u",
+				"t",
+				vi.fn(async () => {
+					throw new Error("down");
+				}),
+			),
+		).toEqual(empty);
 	});
 });

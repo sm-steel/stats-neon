@@ -29,7 +29,7 @@ var PROFILE_QUERY = `query($login: String!, $after: String) {
     repositories(ownerAffiliations: OWNER, first: 100, after: $after) {
       totalCount
       pageInfo { hasNextPage endCursor }
-      nodes { isFork stargazerCount releases { totalCount } languages(first: 20) { edges { size node { name } } } }
+      nodes { isFork stargazerCount forkCount watchers { totalCount } licenseInfo { spdxId } releases { totalCount } languages(first: 20) { edges { size node { name } } } }
     }
   }
 }`;
@@ -57,7 +57,11 @@ async function fetchProfile(login, token, fetchFn = fetch, maxPages = 10) {
     followers: head.followers.totalCount,
     contributedTo: head.repositoriesContributedTo.totalCount,
     repoCount: head.repositories.totalCount,
-    repos
+    repos,
+    // filled by fetchExtras (best effort)
+    sponsors: null,
+    packages: null,
+    diskKB: null
   };
 }
 function contributionsQuery(createdAt, now) {
@@ -90,6 +94,35 @@ async function fetchContributions(login, createdAt, token, now = /* @__PURE__ */
         days.push({ date: d.date, count: d.contributionCount });
   }
   return { total, days };
+}
+var EXTRAS_QUERY = `query($login: String!) {
+  user(login: $login) {
+    sponsorshipsAsMaintainer { totalCount }
+    packages { totalCount }
+    repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }
+  }
+}`;
+async function fetchExtras(login, token, fetchFn = fetch) {
+  try {
+    const res = await fetchFn(ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "stats-neon"
+      },
+      body: JSON.stringify({ query: EXTRAS_QUERY, variables: { login } })
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    const u = (await res.json()).data?.user;
+    return {
+      sponsors: u?.sponsorshipsAsMaintainer?.totalCount ?? null,
+      packages: u?.packages?.totalCount ?? null,
+      diskKB: u?.repositories?.totalDiskUsage ?? null
+    };
+  } catch {
+    return { sponsors: null, packages: null, diskKB: null };
+  }
 }
 
 // node_modules/@sm-steel/neon-kit/dist/util.js
@@ -421,6 +454,22 @@ function fmtAge(createdAt, now) {
 }
 var fmtInt = (n) => n.toLocaleString("en-US");
 
+// src/icons.ts
+var ICONS = {
+  repo: "M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z",
+  star: "M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Zm0 2.445L6.615 5.5a.75.75 0 0 1-.564.41l-3.097.45 2.24 2.184a.75.75 0 0 1 .216.664l-.528 3.084 2.769-1.456a.75.75 0 0 1 .698 0l2.77 1.456-.53-3.084a.75.75 0 0 1 .216-.664l2.24-2.183-3.096-.45a.75.75 0 0 1-.564-.41L8 2.694Z",
+  "repo-forked": "M5 5.372v.878c0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75v-.878a2.25 2.25 0 1 1 1.5 0v.878a2.25 2.25 0 0 1-2.25 2.25h-1.5v2.128a2.251 2.251 0 1 1-1.5 0V8.5h-1.5A2.25 2.25 0 0 1 3.5 6.25v-.878a2.25 2.25 0 1 1 1.5 0ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Zm6.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-3 8.75a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z",
+  eye: "M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.83.88 9.576.43 8.898a1.62 1.62 0 0 1 0-1.798c.45-.677 1.367-1.931 2.637-3.022C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.824 4.242 9.473 3.5 8 3.5c-1.473 0-2.825.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z",
+  "repo-push": "M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V1.5h-8a1 1 0 0 0-1 1v6.708A2.493 2.493 0 0 1 4.5 9h2.25a.75.75 0 0 1 0 1.5H4.5a1 1 0 0 0 0 2h4.75a.75.75 0 0 1 0 1.5H4.5A2.5 2.5 0 0 1 2 11.5Zm12.23 7.79h-.001l-1.224-1.224v6.184a.75.75 0 0 1-1.5 0V9.066L10.28 10.29a.75.75 0 0 1-1.06-1.061l2.505-2.504a.75.75 0 0 1 1.06 0L15.29 9.23a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018Z",
+  tag: "M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.752 1.752 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z",
+  package: "m8.878.392 5.25 3.045c.54.314.872.89.872 1.514v6.098a1.75 1.75 0 0 1-.872 1.514l-5.25 3.045a1.75 1.75 0 0 1-1.756 0l-5.25-3.045A1.75 1.75 0 0 1 1 11.049V4.951c0-.624.332-1.201.872-1.514L7.122.392a1.75 1.75 0 0 1 1.756 0ZM7.875 1.69l-4.63 2.685L8 7.133l4.755-2.758-4.63-2.685a.248.248 0 0 0-.25 0ZM2.5 5.677v5.372c0 .09.047.171.125.216l4.625 2.683V8.432Zm6.25 8.271 4.625-2.683a.25.25 0 0 0 .125-.216V5.677L8.75 8.432Z",
+  heart: "m8 14.25.345.666a.75.75 0 0 1-.69 0l-.008-.004-.018-.01a7.152 7.152 0 0 1-.31-.17 22.055 22.055 0 0 1-3.434-2.414C2.045 10.731 0 8.35 0 5.5 0 2.836 2.086 1 4.25 1 5.797 1 7.153 1.802 8 3.02 8.847 1.802 10.203 1 11.75 1 13.914 1 16 2.836 16 5.5c0 2.85-2.045 5.231-3.885 6.818a22.066 22.066 0 0 1-3.744 2.584l-.018.01-.006.003h-.002ZM4.25 2.5c-1.336 0-2.75 1.164-2.75 3 0 2.15 1.58 4.144 3.365 5.682A20.58 20.58 0 0 0 8 13.393a20.58 20.58 0 0 0 3.135-2.211C12.92 9.644 14.5 7.65 14.5 5.5c0-1.836-1.414-3-2.75-3-1.373 0-2.609.986-3.029 2.456a.749.749 0 0 1-1.442 0C6.859 3.486 5.623 2.5 4.25 2.5Z",
+  people: "M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.508 5.508 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4 4 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.507 5.507 0 0 1 3.102 8.05 3.493 3.493 0 0 1 2 5.5ZM11 4a3.001 3.001 0 0 1 2.22 5.018 5.01 5.01 0 0 1 2.56 3.012.749.749 0 0 1-.885.954.752.752 0 0 1-.549-.514 3.507 3.507 0 0 0-2.522-2.372.75.75 0 0 1-.574-.73v-.352a.75.75 0 0 1 .416-.672A1.5 1.5 0 0 0 11 5.5.75.75 0 0 1 11 4Zm-5.5-.5a2 2 0 1 0-.001 3.999A2 2 0 0 0 5.5 3.5Z",
+  calendar: "M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5Zm10.75-4H2.75a.25.25 0 0 0-.25.25V6h11V3.75a.25.25 0 0 0-.25-.25Z",
+  law: "M8.75.75V2h.985c.304 0 .603.08.867.231l1.29.736c.038.022.08.033.124.033h2.234a.75.75 0 0 1 0 1.5h-.427l2.111 4.692a.75.75 0 0 1-.154.838l-.53-.53.529.531-.001.002-.002.002-.006.006-.006.005-.01.01-.045.04c-.21.176-.441.327-.686.45C14.556 10.78 13.88 11 13 11a4.498 4.498 0 0 1-2.023-.454 3.544 3.544 0 0 1-.686-.45l-.045-.04-.016-.015-.006-.006-.004-.004v-.001a.75.75 0 0 1-.154-.838L12.178 4.5h-.162c-.305 0-.604-.079-.868-.231l-1.29-.736a.245.245 0 0 0-.124-.033H8.75V13h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5V3.5h-.984a.245.245 0 0 0-.124.033l-1.289.737c-.265.15-.564.23-.869.23h-.162l2.112 4.692a.75.75 0 0 1-.154.838l-.53-.53.529.531-.001.002-.002.002-.006.006-.016.015-.045.04c-.21.176-.441.327-.686.45C4.556 10.78 3.88 11 3 11a4.498 4.498 0 0 1-2.023-.454 3.544 3.544 0 0 1-.686-.45l-.045-.04-.016-.015-.006-.006-.004-.004v-.001a.75.75 0 0 1-.154-.838L2.178 4.5H1.75a.75.75 0 0 1 0-1.5h2.234a.249.249 0 0 0 .125-.033l1.288-.737c.265-.15.564-.23.869-.23h.984V.75a.75.75 0 0 1 1.5 0Zm2.945 8.477c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L13 6.327Zm-10 0c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L3 6.327Z",
+  database: "M1 3.5c0-.626.292-1.165.7-1.59.406-.422.956-.767 1.579-1.041C4.525.32 6.195 0 8 0c1.805 0 3.475.32 4.722.869.622.274 1.172.62 1.578 1.04.408.426.7.965.7 1.591v9c0 .626-.292 1.165-.7 1.59-.406.422-.956.767-1.579 1.041C11.476 15.68 9.806 16 8 16c-1.805 0-3.475-.32-4.721-.869-.623-.274-1.173-.62-1.579-1.04-.408-.426-.7-.965-.7-1.591Zm1.5 0c0 .133.058.318.282.551.227.237.591.483 1.101.707C4.898 5.205 6.353 5.5 8 5.5c1.646 0 3.101-.295 4.118-.742.508-.224.873-.471 1.1-.708.224-.232.282-.417.282-.55 0-.133-.058-.318-.282-.551-.227-.237-.591-.483-1.101-.707C11.102 1.795 9.647 1.5 8 1.5c-1.646 0-3.101.295-4.118.742-.508.224-.873.471-1.1.708-.224.232-.282.417-.282.55Zm0 4.5c0 .133.058.318.282.551.227.237.591.483 1.101.707C4.898 9.705 6.353 10 8 10c1.646 0 3.101-.295 4.118-.742.508-.224.873-.471 1.1-.708.224-.232.282-.417.282-.55V5.724c-.241.15-.503.286-.778.407C11.475 6.68 9.805 7 8 7c-1.805 0-3.475-.32-4.721-.869a6.15 6.15 0 0 1-.779-.407Zm0 2.225V12.5c0 .133.058.318.282.55.227.237.592.484 1.1.708 1.016.447 2.471.742 4.118.742 1.647 0 3.102-.295 4.117-.742.51-.224.874-.47 1.101-.707.224-.233.282-.418.282-.551v-2.275c-.241.15-.503.285-.778.406-1.247.549-2.917.869-4.722.869-1.805 0-3.475-.32-4.721-.869a6.327 6.327 0 0 1-.779-.406Z"
+};
+
 // src/palette.ts
 var RAMP = {
   latte: {
@@ -482,11 +531,12 @@ var LAYOUT = {
   width: 868,
   gap: 10,
   tileH: 78,
-  statsY: 108,
-  langY: 138,
-  barY: 148,
+  /** Baselines of the 3 stat-grid rows. */
+  statsY: [104, 126, 148],
+  langY: 178,
+  barY: 188,
   barH: 10,
-  legendY: 178,
+  legendY: 218,
   rowH: 20,
   cols: 4
 };
@@ -497,24 +547,37 @@ function tile(i, value, label, range, p) {
   const cx = r3(x + TILE_W / 2);
   return `<rect x="${x}" y="0" width="${r3(TILE_W)}" height="${LAYOUT.tileH}" rx="2" fill="none" stroke="${p.border}"/><text x="${cx}" y="32" text-anchor="middle" font-size="26" font-weight="700" fill="${p.accent}">${esc(value)}</text><text x="${cx}" y="52" text-anchor="middle" font-size="13" fill="${p.text}">${label}</text><text x="${cx}" y="68" text-anchor="middle" font-size="11" fill="${p.subtext}">${esc(range)}</text>`;
 }
-function statsLine(s, p) {
+var dash = (v) => v === null ? "\u2014" : fmtInt(v);
+function statsGrid(s, p) {
   const items = [
-    ["REPOS", fmtInt(s.repos)],
-    ["CONTRIBUTED TO", fmtInt(s.contributedTo)],
-    ["STARS", fmtInt(s.stars)],
-    ["RELEASES", fmtInt(s.releases)],
-    ["FOLLOWERS", fmtInt(s.followers)],
-    ["JOINED", s.joined]
+    ["repo", "REPOS", fmtInt(s.repos)],
+    ["star", "STARS", fmtInt(s.stars)],
+    ["repo-forked", "FORKERS", fmtInt(s.forks)],
+    ["eye", "WATCHERS", fmtInt(s.watchers)],
+    ["repo-push", "CONTRIBUTED TO", fmtInt(s.contributedTo)],
+    ["tag", "RELEASES", fmtInt(s.releases)],
+    ["package", "PACKAGES", dash(s.packages)],
+    ["heart", "SPONSORS", dash(s.sponsors)],
+    ["people", "FOLLOWERS", fmtInt(s.followers)],
+    ["calendar", "JOINED", s.joined],
+    ["law", "LICENSE", s.license ?? "\u2014"],
+    [
+      "database",
+      "DISK",
+      s.diskKB === null ? "\u2014" : `${(s.diskKB / 1e3).toFixed(1)} MB`
+    ]
   ];
-  const body = items.map(
-    ([k, v]) => `<tspan fill="${p.subtext}">${k} </tspan><tspan fill="${p.text}">${esc(v)}</tspan>`
-  ).join(`<tspan fill="${p.accent}"> \xB7 </tspan>`);
-  return `<text x="0" y="${LAYOUT.statsY}" font-size="12" letter-spacing="1">${body}</text>`;
+  return items.map(([icon, label, value], i) => {
+    const x = r3(i % LAYOUT.cols * COL_W);
+    const y = LAYOUT.statsY[Math.floor(i / LAYOUT.cols)];
+    return `<svg class="st-icon" x="${x}" y="${y - 11}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg><text x="${r3(x + 20)}" y="${y}" font-size="12" letter-spacing="1"><tspan fill="${p.subtext}">${label} </tspan><tspan fill="${p.text}">${esc(value)}</tspan></text>`;
+  }).join("");
 }
 function languagesSection(d, n, p, ramp) {
   const top = d.langs.top.slice(0, n);
   const otherPct = d.langs.otherPct + d.langs.top.slice(n).reduce((s, l) => s + l.pct, 0);
-  if (top.length === 0) return { svg: "", height: LAYOUT.statsY + 8 };
+  if (top.length === 0)
+    return { svg: "", height: LAYOUT.statsY[2] + 8 };
   const entries = [
     ...top.map((l, i) => ({
       name: l.name,
@@ -537,7 +600,7 @@ function languagesSection(d, n, p, ramp) {
   }).join("");
   const rows = Math.ceil(entries.length / LAYOUT.cols);
   return {
-    svg: `<text x="0" y="${LAYOUT.langY}" font-size="10" letter-spacing="1.2" fill="${p.text}"><tspan fill="${p.accent}">//</tspan> LANGUAGES</text><clipPath id="st-bar"><rect x="0" y="${LAYOUT.barY}" width="${LAYOUT.width}" height="${LAYOUT.barH}" rx="2"/></clipPath><g clip-path="url(#st-bar)">${segs}</g>` + legend,
+    svg: `<text x="0" y="${LAYOUT.langY}" font-size="10" letter-spacing="1.2" fill="${p.text}"><tspan fill="${p.accent}">//</tspan> LANGUAGES \xB7 ${d.langs.count}</text><clipPath id="st-bar"><rect x="0" y="${LAYOUT.barY}" width="${LAYOUT.width}" height="${LAYOUT.barH}" rx="2"/></clipPath><g clip-path="url(#st-bar)">${segs}</g>` + legend,
     height: LAYOUT.legendY + (rows - 1) * LAYOUT.rowH + 6
   };
 }
@@ -562,7 +625,7 @@ function renderStats(d, o) {
     "Longest Streak",
     fmtRun(d.longest, d.currentYear),
     p
-  ) + statsLine(d.stats, p) + langs.svg;
+  ) + statsGrid(d.stats, p) + langs.svg;
   return card(
     {
       width: LAYOUT.width,
@@ -586,19 +649,41 @@ function languages(repos, n) {
       sizes.set(e.node.name, (sizes.get(e.node.name) ?? 0) + e.size);
   }
   const total = [...sizes.values()].reduce((a, b) => a + b, 0);
-  if (total === 0) return { top: [], otherPct: 0 };
+  if (total === 0) return { top: [], otherPct: 0, count: 0 };
   const all = [...sizes].map(([name, size]) => ({ name, size, pct: 100 * size / total })).sort((a, b) => b.size - a.size || a.name.localeCompare(b.name));
   const top = all.slice(0, n);
-  return { top, otherPct: all.slice(n).reduce((s, l) => s + l.pct, 0) };
+  return {
+    top,
+    otherPct: all.slice(n).reduce((s, l) => s + l.pct, 0),
+    count: all.length
+  };
+}
+function preferredLicense(repos) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const r of repos) {
+    const id = r.licenseInfo?.spdxId;
+    if (id && id !== "NOASSERTION") counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  let best = null;
+  for (const [id, n] of counts)
+    if (!best || n > (counts.get(best) ?? 0)) best = id;
+  return best;
 }
 function repoStats(p, now) {
+  const sum = (f) => p.repos.reduce((s, r) => s + f(r), 0);
   return {
     repos: p.repoCount,
     contributedTo: p.contributedTo,
-    stars: p.repos.reduce((s, r) => s + r.stargazerCount, 0),
-    releases: p.repos.reduce((s, r) => s + r.releases.totalCount, 0),
+    stars: sum((r) => r.stargazerCount),
+    releases: sum((r) => r.releases.totalCount),
     followers: p.followers,
-    joined: fmtAge(p.createdAt, now)
+    joined: fmtAge(p.createdAt, now),
+    forks: sum((r) => r.forkCount),
+    watchers: sum((r) => r.watchers.totalCount),
+    license: preferredLicense(p.repos),
+    sponsors: p.sponsors,
+    packages: p.packages,
+    diskKB: p.diskKB
   };
 }
 
@@ -642,7 +727,10 @@ function streaks(days, today) {
 
 // src/generate.ts
 async function collect(login, token, now = /* @__PURE__ */ new Date(), fetchFn = fetch) {
-  const profile = await fetchProfile(login, token, fetchFn);
+  const profile = {
+    ...await fetchProfile(login, token, fetchFn),
+    ...await fetchExtras(login, token, fetchFn)
+  };
   const { total, days } = await fetchContributions(
     profile.login,
     profile.createdAt,

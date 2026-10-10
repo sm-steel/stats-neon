@@ -36,7 +36,7 @@ export const PROFILE_QUERY = `query($login: String!, $after: String) {
     repositories(ownerAffiliations: OWNER, first: 100, after: $after) {
       totalCount
       pageInfo { hasNextPage endCursor }
-      nodes { isFork stargazerCount releases { totalCount } languages(first: 20) { edges { size node { name } } } }
+      nodes { isFork stargazerCount forkCount watchers { totalCount } licenseInfo { spdxId } releases { totalCount } languages(first: 20) { edges { size node { name } } } }
     }
   }
 }`;
@@ -85,6 +85,10 @@ export async function fetchProfile(
 		contributedTo: head.repositoriesContributedTo.totalCount,
 		repoCount: head.repositories.totalCount,
 		repos,
+		// filled by fetchExtras (best effort)
+		sponsors: null,
+		packages: null,
+		diskKB: null,
 	};
 }
 
@@ -135,4 +139,56 @@ export async function fetchContributions(
 				days.push({ date: d.date, count: d.contributionCount });
 	}
 	return { total, days };
+}
+
+export const EXTRAS_QUERY = `query($login: String!) {
+  user(login: $login) {
+    sponsorshipsAsMaintainer { totalCount }
+    packages { totalCount }
+    repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }
+  }
+}`;
+
+interface ExtrasData {
+	user: {
+		sponsorshipsAsMaintainer?: { totalCount: number } | null;
+		packages?: { totalCount: number } | null;
+		repositories?: { totalDiskUsage: number | null } | null;
+	} | null;
+}
+
+/**
+ * Fields GitHub may hide from the default workflow token. Never throws: anything
+ * missing, errored or unreachable comes back as null (shown as "—" on the card).
+ */
+export async function fetchExtras(
+	login: string,
+	token: string,
+	fetchFn: typeof fetch = fetch,
+): Promise<{
+	sponsors: number | null;
+	packages: number | null;
+	diskKB: number | null;
+}> {
+	try {
+		const res = await fetchFn(ENDPOINT, {
+			method: "POST",
+			headers: {
+				Authorization: `bearer ${token}`,
+				"Content-Type": "application/json",
+				"User-Agent": "stats-neon",
+			},
+			body: JSON.stringify({ query: EXTRAS_QUERY, variables: { login } }),
+		});
+		if (!res.ok) throw new Error(String(res.status));
+		// partial data is fine: GraphQL returns what it could alongside `errors`
+		const u = ((await res.json()) as { data?: ExtrasData }).data?.user;
+		return {
+			sponsors: u?.sponsorshipsAsMaintainer?.totalCount ?? null,
+			packages: u?.packages?.totalCount ?? null,
+			diskKB: u?.repositories?.totalDiskUsage ?? null,
+		};
+	} catch {
+		return { sponsors: null, packages: null, diskKB: null };
+	}
 }
