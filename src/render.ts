@@ -120,7 +120,7 @@ function statsGrid(s: RepoStats, p: Palette): string {
 			return (
 				`<rect class="st-cell" x="${x}" y="${y}" width="${r3(CELL_W)}" height="${LAYOUT.cellH}" fill="${p.accent}" fill-opacity="0.03" stroke="${p.border}" stroke-opacity="0.6"/>` +
 				brackets(x, y, CELL_W, LAYOUT.cellH, p.accent) +
-				`<svg class="st-icon" x="${r3(x + 9)}" y="${y + 5}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg>` +
+				`<svg class="st-icon" aria-hidden="true" x="${r3(x + 9)}" y="${y + 5}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg>` +
 				`<text x="${r3(x + 30)}" y="${base}" font-size="11" letter-spacing="1" fill="${p.subtext}">${label}</text>` +
 				`<text class="st-val" x="${r3(x + CELL_W - 10)}" y="${base}" text-anchor="end" font-size="12" font-weight="700" fill="${p.accent}">${esc(fitValue(value, room))}</text>`
 			);

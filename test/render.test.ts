@@ -83,6 +83,10 @@ describe("renderStats", () => {
 		}
 		expect(svg.match(/class="st-icon"/g)).toHaveLength(12);
 	});
+	it("hides the decorative icons from screen readers (each has a text label)", () => {
+		const svg = renderStats(data(), mocha);
+		expect(svg.match(/class="st-icon" aria-hidden="true"/g)).toHaveLength(12);
+	});
 	it("frames each stat as a badge-like cell with its value right-aligned", () => {
 		const svg = renderStats(data(), mocha);
 		const cells = [
