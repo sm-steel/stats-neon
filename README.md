@@ -1,5 +1,10 @@
 # stats-neon
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/demo-mocha.svg" />
+  <img alt="stats-neon demo" src="docs/demo-latte.svg" />
+</picture>
+
 A neon `// SYS.STATS` card for your GitHub profile, rendered as one animated SVG from GitHub's API:
 
 - **Streaks:** total contributions since your first one, your current streak and your longest streak, each with its date range.
@@ -61,6 +66,28 @@ Each `outputs` line is a file path with options as a query string:
 
 Action inputs: `github_user_name` (required), `outputs` (required), and `github_token` (default: the workflow token, which sees public data, the same view a visitor has). GitHub may hide packages, sponsors or disk usage from the workflow token; those then show `—`. To fill them, pass a personal access token from a secret: `github_token: ${{ secrets.MY_TOKEN }}`.
 
+### Examples
+
+**Latte**: `stats.svg?flavor=latte`
+
+<img alt="Latte flavor" src="docs/demo-latte.svg" />
+
+**Frappé**: `stats.svg?flavor=frappe`
+
+<img alt="Frappé flavor" src="docs/demo-frappe.svg" />
+
+**Macchiato**: `stats.svg?flavor=macchiato`
+
+<img alt="Macchiato flavor" src="docs/demo-macchiato.svg" />
+
+**Mocha** (default): `stats.svg?flavor=mocha`
+
+<img alt="Mocha flavor" src="docs/demo-mocha.svg" />
+
+**Top 3 languages**, the rest as "Other": `stats.svg?languages=3`
+
+<img alt="Three languages plus Other" src="docs/demo-languages-3.svg" />
+
 ## How streaks are counted
 
 - Days are calendar days (UTC) from your GitHub contribution graph, from the day you joined to today.
@@ -76,6 +103,7 @@ Tools are pinned with [mise](https://mise.jdx.dev): `mise install && npm ci`.
 - `npm test`, `npm run lint`, `npm run typecheck`
 - `node src/cli.ts --user <login> --out preview/out/stats.svg` renders a card locally (token from `$GITHUB_TOKEN` or `$GH_TOKEN`).
 - `npm run build` bundles `dist/` (committed; CI checks it's current).
+- The `docs/demo-*.svg` examples are rendered from real data with the CLI, one `--out` per file.
 
 ## License
 
