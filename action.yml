@@ -1,0 +1,26 @@
+name: stats-neon
+description: Neon SYS.STATS card for your GitHub profile — streaks, repo stats and languages (Catppuccin)
+author: sm-steel
+branding:
+  icon: bar-chart-2
+  color: purple
+
+inputs:
+  github_user_name:
+    description: GitHub login whose stats are rendered
+    required: true
+  outputs:
+    description: |
+      One output file per line, with options as a query string, e.g.
+        dist/stats.svg?flavor=latte
+        dist/stats-dark.svg?flavor=mocha&languages=6
+      Options: flavor (latte|frappe|macchiato|mocha), languages (1-8).
+    required: true
+  github_token:
+    description: Token used to read the profile (default workflow token = public data)
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: node24
+  main: dist/action.js

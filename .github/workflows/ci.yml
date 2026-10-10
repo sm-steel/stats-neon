@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: dist/ is up to date
+        run: npm run build && git diff --exit-code dist
+
+  # Runs the action from this checkout against the repo owner's real graph.
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: |
+            out/stats-latte.svg?flavor=latte
+            out/stats-mocha.svg?flavor=mocha
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stats-neon
+          path: out
