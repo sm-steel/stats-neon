@@ -131,3 +131,21 @@ All tests run offline, using fixtures and a fake `fetch`:
 - Private contribution counts beyond what the default token's public view shows.
 - Packages, sponsors, forkers, watchers, disk usage, the "prefers license" line, and the 14-day mini strip from metrics.
 - A Marketplace listing (optional later, done by the user in the web UI).
+
+## Addendum (2026-10-10, after the first preview): more stats, icons
+
+The user asked for metrics' remaining stats and for icons:
+- **Repo nodes** also fetch `forkCount`, `watchers { totalCount }` and `licenseInfo { spdxId }`.
+  - `FORKERS` = Σ `forkCount`; `WATCHERS` = Σ `watchers`.
+  - `LICENSE` = the most common non-null `spdxId` other than `NOASSERTION` among owned repos, or `—` when there is none.
+- **Optional fields** are fetched in a separate, best-effort query: `sponsorshipsAsMaintainer { totalCount }`, `packages { totalCount }` and `repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }`.
+  - Any field that's missing or errors (GitHub may hide some from the default workflow token) shows `—`. It never fails the run.
+  - `DISK` = `totalDiskUsage` KB / 1000, with 1 decimal, plus ` MB`.
+  - Verified live: sponsors 0, packages 0, 51,602 KB.
+- **Languages header:** `// LANGUAGES · <N>`, where N is the number of distinct languages in non-fork repos (15 for sm-steel).
+- **Stats grid** (replaces the one-line stats row): 4 columns × 3 rows, baselines y=104, 126 and 148, column width 217. Each entry is a 14px **Octicon** (GitHub's MIT-licensed icon set, 16px paths embedded in `src/icons.ts`) in the accent colour, plus `LABEL` in `subtext` and `value` in `text`, at 12px. In order:
+  - repo `REPOS`, star `STARS`, repo-forked `FORKERS`, eye `WATCHERS`;
+  - repo-push `CONTRIBUTED TO`, tag `RELEASES`, package `PACKAGES`, heart `SPONSORS`;
+  - people `FOLLOWERS`, calendar `JOINED`, law `LICENSE`, database `DISK`.
+- **Layout shift:** `// LANGUAGES` at y=178, bar at 188, first legend baseline 218. Height without languages: 156.
+- **README:** includes the Octicons MIT notice.
