@@ -141,35 +141,25 @@ export async function fetchContributions(
 	return { total, days };
 }
 
-export const EXTRAS_QUERY = `query($login: String!) {
-  user(login: $login) {
-    sponsorshipsAsMaintainer { totalCount }
-    packages { totalCount }
-    repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }
-  }
-}`;
-
-interface ExtrasData {
-	user: {
-		sponsorshipsAsMaintainer?: { totalCount: number } | null;
-		packages?: { totalCount: number } | null;
-		repositories?: { totalDiskUsage: number | null } | null;
-	} | null;
-}
-
 /**
- * Fields GitHub may hide from the default workflow token. Never throws: anything
- * missing, errored or unreachable comes back as null (shown as "—" on the card).
+ * Fields GitHub may hide from the default workflow token, one query each: a refused
+ * non-null field nulls the whole `user`, so asking together would blank all three.
  */
-export async function fetchExtras(
+export const EXTRAS_FIELDS = {
+	sponsors: "sponsorshipsAsMaintainer { totalCount }",
+	packages: "packages { totalCount }",
+	diskKB: "repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }",
+} as const;
+
+type Extras = Record<keyof typeof EXTRAS_FIELDS, number | null>;
+
+/** Reads one extra field; null when anything about it fails. */
+async function extra(
+	key: keyof typeof EXTRAS_FIELDS,
 	login: string,
 	token: string,
-	fetchFn: typeof fetch = fetch,
-): Promise<{
-	sponsors: number | null;
-	packages: number | null;
-	diskKB: number | null;
-}> {
+	fetchFn: typeof fetch,
+): Promise<number | null> {
 	try {
 		const res = await fetchFn(ENDPOINT, {
 			method: "POST",
@@ -178,17 +168,43 @@ export async function fetchExtras(
 				"Content-Type": "application/json",
 				"User-Agent": "stats-neon",
 			},
-			body: JSON.stringify({ query: EXTRAS_QUERY, variables: { login } }),
+			body: JSON.stringify({
+				query: `query($login: String!) { user(login: $login) { ${EXTRAS_FIELDS[key]} } }`,
+				variables: { login },
+			}),
 		});
-		if (!res.ok) throw new Error(String(res.status));
-		// partial data is fine: GraphQL returns what it could alongside `errors`
-		const u = ((await res.json()) as { data?: ExtrasData }).data?.user;
-		return {
-			sponsors: u?.sponsorshipsAsMaintainer?.totalCount ?? null,
-			packages: u?.packages?.totalCount ?? null,
-			diskKB: u?.repositories?.totalDiskUsage ?? null,
-		};
+		if (!res.ok) return null;
+		const u = (
+			(await res.json()) as { data?: { user?: Record<string, unknown> | null } }
+		).data?.user;
+		const v =
+			key === "sponsors"
+				? (u?.sponsorshipsAsMaintainer as { totalCount?: number } | null)
+						?.totalCount
+				: key === "packages"
+					? (u?.packages as { totalCount?: number } | null)?.totalCount
+					: (u?.repositories as { totalDiskUsage?: number | null } | null)
+							?.totalDiskUsage;
+		return typeof v === "number" ? v : null;
 	} catch {
-		return { sponsors: null, packages: null, diskKB: null };
+		return null;
 	}
+}
+
+/** Never throws: anything missing, refused or unreachable is null ("—" on the card). */
+export async function fetchExtras(
+	login: string,
+	token: string,
+	fetchFn: typeof fetch = fetch,
+): Promise<Extras> {
+	const [sponsors, packages, diskKB] = await Promise.all(
+		(["sponsors", "packages", "diskKB"] as const).map((k) =>
+			extra(k, login, token, fetchFn),
+		),
+	);
+	return {
+		sponsors: sponsors ?? null,
+		packages: packages ?? null,
+		diskKB: diskKB ?? null,
+	};
 }

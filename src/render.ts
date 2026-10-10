@@ -1,4 +1,5 @@
 import {
+	CHAR_WIDTH_EM,
 	card,
 	esc,
 	FLAVORS,
@@ -66,6 +67,13 @@ function tile(
 
 const dash = (v: number | null) => (v === null ? "—" : fmtInt(v));
 
+/** Cuts `value` with "…" so it fits in `room` px of 12px bold monospace. */
+function fitValue(value: string, room: number): string {
+	const max = Math.floor(room / (12 * CHAR_WIDTH_EM));
+	const chars = [...value];
+	return chars.length <= max ? value : `${chars.slice(0, max - 1).join("")}…`;
+}
+
 /** Corner brackets of a cell, 5px long. */
 function brackets(x: number, y: number, w: number, h: number, c: string) {
 	const s = 5;
@@ -106,12 +114,15 @@ function statsGrid(s: RepoStats, p: Palette): string {
 				LAYOUT.gridY +
 				Math.floor(i / LAYOUT.cols) * (LAYOUT.cellH + LAYOUT.cellGap);
 			const base = y + 16;
+			// label: 11px + 1px letter-spacing from x+30; value ends at x+CELL_W-10; 8px between
+			const room =
+				CELL_W - 10 - (30 + label.length * (11 * CHAR_WIDTH_EM + 1)) - 8;
 			return (
 				`<rect class="st-cell" x="${x}" y="${y}" width="${r3(CELL_W)}" height="${LAYOUT.cellH}" fill="${p.accent}" fill-opacity="0.03" stroke="${p.border}" stroke-opacity="0.6"/>` +
 				brackets(x, y, CELL_W, LAYOUT.cellH, p.accent) +
 				`<svg class="st-icon" x="${r3(x + 9)}" y="${y + 5}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg>` +
 				`<text x="${r3(x + 30)}" y="${base}" font-size="11" letter-spacing="1" fill="${p.subtext}">${label}</text>` +
-				`<text class="st-val" x="${r3(x + CELL_W - 10)}" y="${base}" text-anchor="end" font-size="12" font-weight="700" fill="${p.accent}">${esc(value)}</text>`
+				`<text class="st-val" x="${r3(x + CELL_W - 10)}" y="${base}" text-anchor="end" font-size="12" font-weight="700" fill="${p.accent}">${esc(fitValue(value, room))}</text>`
 			);
 		})
 		.join("");

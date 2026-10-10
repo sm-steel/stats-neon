@@ -44,25 +44,21 @@ const contributions = {
 
 describe("collect + generate", () => {
 	it("collects card data and writes one SVG per output line", async () => {
-		const fetchFn = vi
-			.fn()
-			.mockResolvedValueOnce(new Response(JSON.stringify({ data: profile })))
-			.mockResolvedValueOnce(
-				new Response(
-					JSON.stringify({
-						data: {
-							user: {
-								sponsorshipsAsMaintainer: { totalCount: 0 },
-								packages: { totalCount: 0 },
-								repositories: { totalDiskUsage: 10 },
-							},
-						},
-					}),
-				),
-			)
-			.mockResolvedValueOnce(
-				new Response(JSON.stringify({ data: contributions })),
-			);
+		const extras = {
+			sponsorshipsAsMaintainer: { totalCount: 0 },
+			packages: { totalCount: 0 },
+			repositories: { totalDiskUsage: 10 },
+		};
+		// route by query: profile, the three per-field extras, then contributions
+		const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) => {
+			const q = String(JSON.parse(String(init?.body)).query);
+			const data = q.includes("contributionsCollection")
+				? contributions
+				: /sponsorshipsAsMaintainer|packages|totalDiskUsage/.test(q)
+					? { user: extras }
+					: profile;
+			return new Response(JSON.stringify({ data }));
+		});
 		const d = await collect(
 			"u",
 			"t",
@@ -75,6 +71,7 @@ describe("collect + generate", () => {
 			currentYear: 2026,
 		});
 		expect(d.current?.length).toBe(10);
+		expect(d.stats).toMatchObject({ sponsors: 0, packages: 0, diskKB: 10 });
 		const dir = await mkdtemp(join(tmpdir(), "stats-neon-"));
 		const written = await generate(d, [
 			`${dir}/a.svg?flavor=latte`,

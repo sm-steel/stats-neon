@@ -45,17 +45,13 @@ describe("fetchProfile", () => {
 			followers: 1,
 		});
 		expect(p.repos).toHaveLength(3);
-		const body = (i: number) =>
-			JSON.parse(String((fetchFn.mock.calls[i]?.[1] as RequestInit).body));
+		const init = (i: number) =>
+			fetchFn.mock.calls[i]?.[1] as RequestInit | undefined;
+		const body = (i: number) => JSON.parse(String(init(i)?.body));
 		expect(body(0).variables).toEqual({ login: "Some-User", after: null });
 		expect(body(1).variables).toEqual({ login: "Some-User", after: "c1" });
 		expect(
-			(
-				(fetchFn.mock.calls[0]?.[1] as RequestInit).headers as Record<
-					string,
-					string
-				>
-			).Authorization,
+			(init(0)?.headers as Record<string, string> | undefined)?.Authorization,
 		).toBe("bearer tok");
 	});
 	it("stops at the page cap", async () => {
@@ -159,6 +155,22 @@ describe("fetchExtras (best effort)", () => {
 			vi.fn(async () => ok(extras)),
 		);
 		expect(r).toEqual({ sponsors: 2, packages: 1, diskKB: 51602 });
+	});
+	it("asks for each field separately, so one refused field blanks only itself", async () => {
+		// GitHub's real shape for a refused non-null field: the whole user is null
+		const refused = {
+			data: { user: null },
+			errors: [{ message: "Resource not accessible by integration" }],
+		};
+		const fetchFn = vi.fn(async (_url: unknown, init?: RequestInit) => {
+			const q = String(JSON.parse(String(init?.body)).query);
+			return q.includes("packages")
+				? new Response(JSON.stringify(refused))
+				: ok(extras);
+		});
+		const r = await fetchExtras("u", "t", fetchFn);
+		expect(r).toEqual({ sponsors: 2, packages: null, diskKB: 51602 });
+		expect(fetchFn).toHaveBeenCalledTimes(3);
 	});
 	it("keeps what GitHub returned when some fields error", async () => {
 		const partial = {

@@ -95,14 +95,12 @@ async function fetchContributions(login, createdAt, token, now = /* @__PURE__ */
   }
   return { total, days };
 }
-var EXTRAS_QUERY = `query($login: String!) {
-  user(login: $login) {
-    sponsorshipsAsMaintainer { totalCount }
-    packages { totalCount }
-    repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }
-  }
-}`;
-async function fetchExtras(login, token, fetchFn = fetch) {
+var EXTRAS_FIELDS = {
+  sponsors: "sponsorshipsAsMaintainer { totalCount }",
+  packages: "packages { totalCount }",
+  diskKB: "repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }"
+};
+async function extra(key, login, token, fetchFn) {
   try {
     const res = await fetchFn(ENDPOINT, {
       method: "POST",
@@ -111,18 +109,30 @@ async function fetchExtras(login, token, fetchFn = fetch) {
         "Content-Type": "application/json",
         "User-Agent": "stats-neon"
       },
-      body: JSON.stringify({ query: EXTRAS_QUERY, variables: { login } })
+      body: JSON.stringify({
+        query: `query($login: String!) { user(login: $login) { ${EXTRAS_FIELDS[key]} } }`,
+        variables: { login }
+      })
     });
-    if (!res.ok) throw new Error(String(res.status));
+    if (!res.ok) return null;
     const u = (await res.json()).data?.user;
-    return {
-      sponsors: u?.sponsorshipsAsMaintainer?.totalCount ?? null,
-      packages: u?.packages?.totalCount ?? null,
-      diskKB: u?.repositories?.totalDiskUsage ?? null
-    };
+    const v = key === "sponsors" ? u?.sponsorshipsAsMaintainer?.totalCount : key === "packages" ? u?.packages?.totalCount : u?.repositories?.totalDiskUsage;
+    return typeof v === "number" ? v : null;
   } catch {
-    return { sponsors: null, packages: null, diskKB: null };
+    return null;
   }
+}
+async function fetchExtras(login, token, fetchFn = fetch) {
+  const [sponsors, packages, diskKB] = await Promise.all(
+    ["sponsors", "packages", "diskKB"].map(
+      (k) => extra(k, login, token, fetchFn)
+    )
+  );
+  return {
+    sponsors: sponsors ?? null,
+    packages: packages ?? null,
+    diskKB: diskKB ?? null
+  };
 }
 
 // node_modules/@sm-steel/neon-kit/dist/util.js
@@ -552,6 +562,11 @@ function tile(i, value, label, range, p) {
   return `<rect x="${x}" y="0" width="${r3(TILE_W)}" height="${LAYOUT.tileH}" rx="2" fill="none" stroke="${p.border}"/><text x="${cx}" y="32" text-anchor="middle" font-size="26" font-weight="700" fill="${p.accent}">${esc(value)}</text><text x="${cx}" y="52" text-anchor="middle" font-size="13" fill="${p.text}">${label}</text><text x="${cx}" y="68" text-anchor="middle" font-size="11" fill="${p.subtext}">${esc(range)}</text>`;
 }
 var dash = (v) => v === null ? "\u2014" : fmtInt(v);
+function fitValue(value, room) {
+  const max = Math.floor(room / (12 * CHAR_WIDTH_EM));
+  const chars = [...value];
+  return chars.length <= max ? value : `${chars.slice(0, max - 1).join("")}\u2026`;
+}
 function brackets2(x, y, w, h, c) {
   const s = 5;
   const r = r3(x + w);
@@ -582,7 +597,8 @@ function statsGrid(s, p) {
     const x = r3(i % LAYOUT.cols * COL_W);
     const y = LAYOUT.gridY + Math.floor(i / LAYOUT.cols) * (LAYOUT.cellH + LAYOUT.cellGap);
     const base = y + 16;
-    return `<rect class="st-cell" x="${x}" y="${y}" width="${r3(CELL_W)}" height="${LAYOUT.cellH}" fill="${p.accent}" fill-opacity="0.03" stroke="${p.border}" stroke-opacity="0.6"/>` + brackets2(x, y, CELL_W, LAYOUT.cellH, p.accent) + `<svg class="st-icon" x="${r3(x + 9)}" y="${y + 5}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg><text x="${r3(x + 30)}" y="${base}" font-size="11" letter-spacing="1" fill="${p.subtext}">${label}</text><text class="st-val" x="${r3(x + CELL_W - 10)}" y="${base}" text-anchor="end" font-size="12" font-weight="700" fill="${p.accent}">${esc(value)}</text>`;
+    const room = CELL_W - 10 - (30 + label.length * (11 * CHAR_WIDTH_EM + 1)) - 8;
+    return `<rect class="st-cell" x="${x}" y="${y}" width="${r3(CELL_W)}" height="${LAYOUT.cellH}" fill="${p.accent}" fill-opacity="0.03" stroke="${p.border}" stroke-opacity="0.6"/>` + brackets2(x, y, CELL_W, LAYOUT.cellH, p.accent) + `<svg class="st-icon" x="${r3(x + 9)}" y="${y + 5}" width="14" height="14" viewBox="0 0 16 16"><path d="${ICONS[icon]}" fill="${p.accent}"/></svg><text x="${r3(x + 30)}" y="${base}" font-size="11" letter-spacing="1" fill="${p.subtext}">${label}</text><text class="st-val" x="${r3(x + CELL_W - 10)}" y="${base}" text-anchor="end" font-size="12" font-weight="700" fill="${p.accent}">${esc(fitValue(value, room))}</text>`;
   }).join("");
 }
 function languagesSection(d, n, p, ramp) {

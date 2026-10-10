@@ -138,7 +138,7 @@ The user asked for metrics' remaining stats and for icons:
 - **Repo nodes** also fetch `forkCount`, `watchers { totalCount }` and `licenseInfo { spdxId }`.
   - `FORKERS` = Σ `forkCount`; `WATCHERS` = Σ `watchers`.
   - `LICENSE` = the most common non-null `spdxId` other than `NOASSERTION` among owned repos, or `—` when there is none.
-- **Optional fields** are fetched in a separate, best-effort query: `sponsorshipsAsMaintainer { totalCount }`, `packages { totalCount }` and `repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }`.
+- **Optional fields** are fetched best-effort, one query per field (a refused non-null field nulls the whole `user`, so a combined query would blank all three): `sponsorshipsAsMaintainer { totalCount }`, `packages { totalCount }` and `repositories(ownerAffiliations: OWNER, first: 1) { totalDiskUsage }`.
   - Any field that's missing or errors (GitHub may hide some from the default workflow token) shows `—`. It never fails the run.
   - `DISK` = `totalDiskUsage` KB / 1000, with 1 decimal, plus ` MB`.
   - Verified live: sponsors 0, packages 0, 51,602 KB.

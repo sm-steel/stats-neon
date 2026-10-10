@@ -121,6 +121,14 @@ describe("renderStats", () => {
 		);
 		expect(svg.match(/>—<\/text>/g)).toHaveLength(4);
 	});
+	it("elides a value too long to fit beside its label", () => {
+		const svg = renderStats(
+			data({ stats: { ...data().stats, license: "BSD-3-Clause-Clear" } }),
+			mocha,
+		);
+		expect(svg).toContain(">BSD-3-Clause-…</text>");
+		expect(svg).not.toContain("BSD-3-Clause-Clear");
+	});
 	it("shows the language count in the header", () => {
 		expect(renderStats(data(), mocha)).toContain("LANGUAGES · 15");
 	});
